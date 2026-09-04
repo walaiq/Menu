@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>مِنسة — منيو إلكتروني لمطعمك</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<script>
+/* =====================================================================
+   إعدادات المشروع — لازم تعبيها قبل ما ترفع الموقع
+   ===================================================================== */
+
+// 🔴 [إجراء مطلوب] من Firebase Console → إعدادات المشروع → عام → أضف تطبيق ويب
+// انسخ القيم اللي تطلع لك وحطها هنا بدال هذي القيم التجريبية
+const firebaseConfig = {
+  apiKey: "AIzaSyD7RBBr0Jwp5o1YBPZH4gaNz302MRbCEko",
+  authDomain: "menu-hhm.firebaseapp.com",
+  projectId: "menu-hhm",
+  storageBucket: "menu-hhm.firebasestorage.app",
+  messagingSenderId: "787393317894",
+  appId: "1:787393317894:web:a5a7dfd4354427ef360787",
+  measurementId: "G-61DRF41NCK"
+};
+
+// 🔴 [إجراء مطلوب] من حساب Supabase مجاني (supabase.com) — ما يحتاج بطاقة ائتمان:
+// 1) Project URL و anon public key: من مشروعك بـ Supabase → Settings → API
+const SUPABASE_URL = 'https://nalaunqetkvqpjhikwit.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbGF1bnFldGt2cXBqaGlrd2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MDUyNzAsImV4cCI6MjEwNDA4MTI3MH0.sdfv52Lj2lyeY8RD1D9jBimBekKBGCVYrOwRmL-NSfA';
+const SUPABASE_BUCKET = 'menu-images'; // اسم الـ Bucket اللي بتسويه بالـ Storage
+
+let _db = null, _auth = null, _sb = null;
+try{
+  firebase.initializeApp(firebaseConfig);
+  _db = firebase.firestore();
+  _auth = firebase.auth();
+}catch(e){ console.error('Firebase init failed', e); }
+try{
+  if(SUPABASE_URL !== 'https://YOUR_PROJECT.supabase.co'){
+    _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+}catch(e){ console.error('Supabase init failed', e); }
+</script>
+
+<style>
+  :root{
+    --bg:#FBF8F3; --surface:#FFFFFF; --surface-2:#F5EFE4; --ink:#241C14;
+    --primary:#2B1A12; --primary-dark:#180F09;
+    --accent:#C67C2E; --accent-light:#F6E3C8; --accent-ink:#5C3813;
+    --herb:#748C55; --herb-light:#E9EFDD;
+    --muted:#8A7B6C; --border:#E8DFD1; --danger:#B3432B; --danger-light:#F6E1D9;
+    --radius-lg:18px; --radius-md:12px; --radius-sm:8px;
+    --shadow-soft:0 4px 18px -8px rgba(43,26,18,.18);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--ink); font-family:'Tajawal',sans-serif;}
+  body{min-height:100vh; padding-bottom:30px;}
+  h1,h2,h3,.display{font-family:'Cairo',sans-serif;}
+  button{font-family:inherit; cursor:pointer; border:none; background:none;}
+  input, textarea, select{font-family:inherit;}
+  a{color:inherit; text-decoration:none;}
+  img{max-width:100%; display:block;}
+  :focus-visible{outline:3px solid var(--accent); outline-offset:2px;}
+  .wrap{max-width:520px; margin:0 auto; padding:0 16px;}
+  .hidden{display:none !important;}
+
+  /* ---------- عناصر عامة ---------- */
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:13px 20px; border-radius:12px; font-weight:800; font-size:14.5px; transition:.15s;}
+  .btn-primary{background:var(--primary); color:#fff;}
+  .btn-primary:active{transform:scale(.97); background:var(--primary-dark);}
+  .btn-accent{background:var(--accent); color:#fff;}
+  .btn-accent:active{transform:scale(.97);}
+  .btn-ghost{background:var(--surface); color:var(--ink); border:1.5px solid var(--border);}
+  .btn-ghost:active{background:var(--surface-2);}
+  .btn-danger{background:var(--danger-light); color:var(--danger);}
+  .btn-block{width:100%;}
+  .btn-sm{padding:8px 14px; font-size:12.5px; border-radius:9px;}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:22px; margin-bottom:16px; box-shadow:var(--shadow-soft);}
+  label{display:block; font-size:13px; font-weight:700; margin:14px 0 6px; color:var(--ink);}
+  label:first-of-type{margin-top:0;}
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=tel], textarea, select{
+    width:100%; padding:12px 14px; border:1.5px solid var(--border); border-radius:10px;
+    font-size:15px; background:#FCFAF6; color:var(--ink);
+  }
+  input:focus, textarea:focus, select:focus{border-color:var(--accent); background:#fff;}
+  textarea{resize:vertical; min-height:64px;}
+  .note{font-size:12px; color:var(--muted); margin-top:6px; line-height:1.6;}
+  .eyebrow{font-size:11.5px; font-weight:800; color:var(--accent-ink); background:var(--accent-light); display:inline-block; padding:4px 10px; border-radius:20px; margin-bottom:10px;}
+  .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--primary); color:#fff; padding:12px 20px; border-radius:30px; font-size:13.5px; font-weight:700; z-index:200; box-shadow:0 8px 24px -6px rgba(0,0,0,.35); max-width:88vw; text-align:center;}
+
+  /* ---------- الصفحة الرئيسية Landing ---------- */
+  .hero{background:var(--primary); color:#fff; padding:54px 20px 64px; position:relative; overflow:hidden;}
+  .hero::after{content:''; position:absolute; inset:auto -30% -60% -30%; height:220px; background:radial-gradient(ellipse at center, rgba(198,124,46,.35), transparent 70%);}
+  .hero-inner{max-width:520px; margin:0 auto; position:relative; z-index:1;}
+  .hero .mark{font-size:13px; font-weight:800; color:var(--accent); letter-spacing:.5px; margin-bottom:18px;}
+  .hero h1{font-size:32px; line-height:1.35; font-weight:900; margin-bottom:14px;}
+  .hero p{font-size:15.5px; color:#D9CFC2; line-height:1.8; margin-bottom:26px;}
+  .hero-cta{display:flex; gap:10px; flex-wrap:wrap;}
+
+  .steps{padding:44px 0 10px;}
+  .steps h2{font-size:22px; margin-bottom:26px; padding:0 4px;}
+  .step-row{display:flex; gap:14px; padding:16px 4px; border-top:1px solid var(--border);}
+  .step-row:last-child{border-bottom:1px solid var(--border);}
+  .step-num{font-family:'Cairo',sans-serif; font-weight:900; font-size:20px; color:var(--accent); width:34px; flex-shrink:0;}
+  .step-body h3{font-size:15.5px; margin-bottom:4px;}
+  .step-body p{font-size:13.5px; color:var(--muted); line-height:1.7;}
+
+  .feat-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:30px 4px 10px;}
+  .feat{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px;}
+  .feat .ic{font-size:22px; margin-bottom:8px;}
+  .feat h4{font-size:13.5px; margin-bottom:4px;}
+  .feat p{font-size:12px; color:var(--muted); line-height:1.6;}
+
+  .landing-foot{padding:36px 4px 10px; text-align:center;}
+  .landing-foot p{font-size:12.5px; color:var(--muted); margin-bottom:14px;}
+
+  /* ---------- المصادقة ---------- */
+  .auth-wrap{max-width:420px; margin:0 auto; padding:60px 20px;}
+  .auth-mark{text-align:center; margin-bottom:26px;}
+  .auth-mark .logo-dot{width:46px; height:46px; border-radius:14px; background:var(--primary); color:var(--accent); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; font-family:'Cairo',sans-serif; font-weight:900; font-size:20px;}
+  .auth-tabs{display:flex; gap:6px; background:var(--surface-2); padding:4px; border-radius:12px; margin-bottom:20px;}
+  .auth-tab{flex:1; padding:10px; text-align:center; border-radius:9px; font-weight:800; font-size:13.5px; color:var(--muted);}
+  .auth-tab.active{background:var(--surface); color:var(--ink); box-shadow:0 2px 6px rgba(0,0,0,.06);}
+
+  /* ---------- لوحة تحكم المطعم ---------- */
+  .topbar{position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:10px; padding:14px 16px; background:rgba(251,248,243,.94); backdrop-filter:blur(8px); border-bottom:1px solid var(--border);}
+  .topbar .rname{font-family:'Cairo',sans-serif; font-weight:800; font-size:15px;}
+  .topbar .rname small{display:block; font-weight:500; font-size:11px; color:var(--muted);}
+  .logout-btn{margin-right:auto; color:var(--danger); font-size:12px; font-weight:800; padding:8px 12px; border-radius:20px; border:1.5px solid var(--danger-light);}
+
+  .tabs{display:flex; overflow-x:auto; gap:6px; padding:12px 16px; background:var(--bg); position:sticky; top:63px; z-index:39; border-bottom:1px solid var(--border);}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab-btn{flex-shrink:0; padding:9px 16px; border-radius:20px; background:var(--surface); border:1.5px solid var(--border); font-weight:700; font-size:13px; color:var(--muted);}
+  .tab-btn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+
+  .list-row{display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); margin-bottom:10px;}
+  .list-row img{width:52px; height:52px; border-radius:10px; object-fit:cover; flex-shrink:0; background:var(--surface-2);}
+  .list-row .ph{width:52px; height:52px; border-radius:10px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;}
+  .list-row .info{flex:1; min-width:0;}
+  .list-row .info h4{font-size:14.5px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .list-row .info p{font-size:12px; color:var(--muted);}
+  .list-row .price{font-family:'Cairo',sans-serif; font-weight:800; color:var(--accent-ink); font-size:14px; white-space:nowrap;}
+  .list-row.inactive{opacity:.5;}
+  .row-actions{display:flex; gap:6px; flex-shrink:0;}
+  .icon-btn{width:32px; height:32px; border-radius:9px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:14px;}
+
+  .fab{position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--primary); color:#fff; padding:14px 26px; border-radius:30px; font-weight:800; font-size:14px; box-shadow:0 10px 24px -6px rgba(43,26,18,.5); z-index:50; display:flex; align-items:center; gap:8px;}
+
+  .modal-bg{position:fixed; inset:0; background:rgba(24,15,9,.55); z-index:100; display:flex; align-items:flex-end;}
+  .modal{background:var(--surface); width:100%; max-height:88vh; overflow-y:auto; border-radius:22px 22px 0 0; padding:22px 18px 30px; animation:slideUp .22s ease;}
+  @keyframes slideUp{from{transform:translateY(30px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+  .modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+  .modal-head h3{font-size:17px;}
+  .modal-close{width:30px; height:30px; border-radius:50%; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:15px;}
+
+  .img-upload{width:100%; aspect-ratio:16/9; border-radius:var(--radius-md); border:2px dashed var(--border); background:var(--surface-2); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; color:var(--muted); font-size:12.5px; font-weight:700; cursor:pointer; overflow:hidden; position:relative;}
+  .img-upload img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .img-upload input{position:absolute; inset:0; opacity:0; cursor:pointer;}
+
+  .color-swatches{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;}
+  .swatch{width:36px; height:36px; border-radius:50%; border:3px solid transparent; box-shadow:0 1px 4px rgba(0,0,0,.2);}
+  .swatch.active{border-color:var(--ink);}
+
+  .qr-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; margin-bottom:10px; text-align:center;}
+  .qr-card canvas{margin:0 auto 10px;}
+  .qr-card h4{font-size:14px; margin-bottom:2px;}
+  .qr-card .url{font-size:10.5px; color:var(--muted); word-break:break-all; margin-bottom:10px;}
+  .qr-actions{display:flex; gap:8px; justify-content:center;}
+
+  .empty-state{text-align:center; padding:50px 20px; color:var(--muted);}
+  .empty-state .ic{font-size:38px; margin-bottom:10px;}
+  .empty-state h4{font-size:15px; color:var(--ink); margin-bottom:4px;}
+  .empty-state p{font-size:13px; line-height:1.7;}
+
+  /* ---------- منيو الزبون ---------- */
+  .m-cover{position:relative; height:170px; background:var(--primary); overflow:hidden;}
+  .m-cover img{width:100%; height:100%; object-fit:cover;}
+  .m-cover .shade{position:absolute; inset:0; background:linear-gradient(to top, rgba(24,15,9,.85), rgba(24,15,9,.1));}
+  .m-header{position:relative; margin-top:-46px; padding:0 18px; text-align:center;}
+  .m-logo{width:78px; height:78px; border-radius:20px; background:var(--surface); border:4px solid var(--surface); box-shadow:0 6px 18px -6px rgba(0,0,0,.3); margin:0 auto 10px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-family:'Cairo',sans-serif; font-weight:900; font-size:26px; color:var(--primary);}
+  .m-logo img{width:100%; height:100%; object-fit:cover;}
+  .m-title{font-size:21px; font-weight:900;}
+  .m-table-chip{display:inline-block; margin-top:8px; font-size:12px; font-weight:700; color:var(--accent-ink); background:var(--accent-light); padding:5px 14px; border-radius:20px;}
+
+  .m-search{position:sticky; top:0; z-index:38; background:var(--bg); padding:16px 18px 10px;}
+  .m-search input{width:100%; padding:12px 16px 12px 16px; border-radius:14px; border:1.5px solid var(--border); background:var(--surface); font-size:14px;}
+
+  .m-cats{display:flex; gap:8px; overflow-x:auto; padding:8px 18px 14px; position:sticky; top:58px; z-index:37; background:var(--bg);}
+  .m-cats::-webkit-scrollbar{display:none;}
+  .m-cat-btn{flex-shrink:0; padding:9px 18px; border-radius:22px; background:var(--surface); border:1.5px solid var(--border); font-weight:700; font-size:13px;}
+  .m-cat-btn.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+
+  .m-item{display:flex; gap:12px; padding:14px 18px; border-bottom:1px solid var(--border);}
+  .m-item img{width:78px; height:78px; border-radius:14px; object-fit:cover; flex-shrink:0; background:var(--surface-2);}
+  .m-item .ph{width:78px; height:78px; border-radius:14px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0;}
+  .m-item .info{flex:1; min-width:0;}
+  .m-item h4{font-size:15px; margin-bottom:4px;}
+  .m-item .desc{font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .m-item .price{font-family:'Cairo',sans-serif; font-weight:900; color:var(--accent-ink); font-size:14.5px;}
+  .m-item .addons-tag{display:inline-block; margin-right:8px; font-size:10.5px; color:var(--herb); background:var(--herb-light); padding:2px 8px; border-radius:10px; font-weight:700;}
+
+  .m-cat-heading{padding:18px 18px 4px; font-size:16px; font-weight:900; font-family:'Cairo',sans-serif;}
+
+  .item-sheet-img{width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:16px; margin-bottom:14px; background:var(--surface-2);}
+  .opt-group{margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border);}
+  .opt-group:last-child{border:none;}
+  .opt-group h5{font-size:13px; font-weight:800; margin-bottom:8px; color:var(--muted);}
+  .opt-choice{display:flex; justify-content:space-between; padding:8px 0; font-size:13.5px;}
+
+  @media (min-width:540px){ .wrap, .hero-inner{max-width:540px;} }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="modalRoot"></div>
+
+<script>
+/* =====================================================================
+   حالة التطبيق والتوجيه
+   ===================================================================== */
+let currentUser = null;
+let currentRestaurant = null; // بيانات المطعم لصاحب الحساب الحالي (Dashboard)
+let dashState = { tab:'items', selectedCategoryId:null };
+let publicRestaurant = null; // بيانات المطعم لصفحة الزبون
+let publicMenuState = { search:'', activeCat:'all' };
+
+const params = new URLSearchParams(location.search);
+const routeSlug = params.get('r');
+const routeTable = params.get('table');
+
+function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
+function toast(msg){
+  const t = el(`<div class="toast">${escapeHTML(msg)}</div>`);
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2600);
+}
+function escapeHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtPrice(n){ return (Math.round(Number(n)*100)/100).toLocaleString('ar'); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function slugify(name){
+  const base = String(name).trim().toLowerCase()
+    .replace(/[^a-z0-9\u0600-\u06FF\s-]/g,'')
+    .replace(/\s+/g,'-').slice(0,40) || 'restaurant';
+  return base + '-' + Math.random().toString(36).slice(2,6);
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function openModal(innerHTML){
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this) closeModal()">
+      <div class="modal">${innerHTML}</div>
+    </div>`;
+}
+
+/* =====================================================================
+   Supabase Storage — رفع الصور
+   ===================================================================== */
+async function uploadToCloudinary(file, onProgress){
+  if(!_sb){ toast('لازم تربط حساب Supabase أولاً بالإعدادات بأعلى الملف'); return null; }
+  try{
+    const path = `${(currentRestaurant&&currentRestaurant.id)||'public'}/${Date.now()}_${uid()}_${file.name}`;
+    const { error } = await _sb.storage.from(SUPABASE_BUCKET).upload(path, file, { upsert:false });
+    if(error){ console.error(error); toast('تعذّر رفع الصورة'); return null; }
+    const { data } = _sb.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
+    return data && data.publicUrl ? data.publicUrl : null;
+  }catch(e){
+    console.error('upload failed', e);
+    toast('تعذّر رفع الصورة');
+    return null;
+  }
+}
+function wireImageUpload(inputId, previewId, onDone){
+  document.getElementById(inputId).addEventListener('change', async (e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    const prev = document.getElementById(previewId);
+    prev.innerHTML = `<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted);">⏳ جاري الرفع...</div>` + prev.innerHTML;
+    const url = await uploadToCloudinary(file);
+    if(url) onDone(url);
+  });
+}
+
+/* =====================================================================
+   Firestore — طبقة البيانات
+   بنية القاعدة:
+   restaurants/{id}                  بيانات المطعم العامة
+   restaurants/{id}/categories/{id}  الأقسام
+   restaurants/{id}/items/{id}       الأصناف
+   restaurants/{id}/tables/{id}      الطاولات
+   ===================================================================== */
+function db(){ return _db; }
+
+async function createRestaurant(ownerUid, name){
+  const slug = slugify(name);
+  const ref = db().collection('restaurants').doc();
+  const data = {
+    ownerId: ownerUid, name, slug, logoUrl:'', coverUrl:'',
+    primaryColor:'#2B1A12', accentColor:'#C67C2E',
+    createdAt: Date.now()
+  };
+  await ref.set(data);
+  const defaultCats = ['المقبلات','الوجبات الرئيسية','المشروبات'];
+  for(const c of defaultCats){
+    await ref.collection('categories').add({ name:c, order:Date.now(), active:true });
+  }
+  return { id: ref.id, ...data };
+}
+async function getRestaurantByOwner(ownerUid){
+  const snap = await db().collection('restaurants').where('ownerId','==',ownerUid).limit(1).get();
+  if(snap.empty) return null;
+  const d = snap.docs[0];
+  return { id:d.id, ...d.data() };
+}
+async function getRestaurantBySlug(slug){
+  const snap = await db().collection('restaurants').where('slug','==',slug).limit(1).get();
+  if(snap.empty) return null;
+  const d = snap.docs[0];
+  return { id:d.id, ...d.data() };
+}
+async function saveRestaurant(id, patch){
+  await db().collection('restaurants').doc(id).set(patch, {merge:true});
+}
+async function listSub(restId, coll){
+  const snap = await db().collection('restaurants').doc(restId).collection(coll).orderBy('order','asc').get().catch(async ()=>{
+    return await db().collection('restaurants').doc(restId).collection(coll).get();
+  });
+  return snap.docs.map(d=>({id:d.id, ...d.data()}));
+}
+async function addSub(restId, coll, data){
+  data.order = data.order ?? Date.now();
+  const ref = await db().collection('restaurants').doc(restId).collection(coll).add(data);
+  return { id: ref.id, ...data };
+}
+async function updateSub(restId, coll, id, patch){
+  await db().collection('restaurants').doc(restId).collection(coll).doc(id).set(patch, {merge:true});
+}
+async function deleteSub(restId, coll, id){
+  await db().collection('restaurants').doc(restId).collection(coll).doc(id).delete();
+}
+
+/* =====================================================================
+   المصادقة
+   ===================================================================== */
+async function doSignup(){
+  const name = document.getElementById('suRestName').value.trim();
+  const email = document.getElementById('suEmail').value.trim();
+  const pass = document.getElementById('suPass').value;
+  if(!name || !email || pass.length<6){ toast('عبّي كل الحقول (كلمة المرور 6 أحرف فأكثر)'); return; }
+  try{
+    const cred = await _auth.createUserWithEmailAndPassword(email, pass);
+    const rest = await createRestaurant(cred.user.uid, name);
+    currentRestaurant = rest;
+    toast('تم إنشاء حسابك بنجاح 🎉');
+    renderApp();
+  }catch(e){ toast(authErr(e)); }
+}
+async function doLogin(){
+  const email = document.getElementById('liEmail').value.trim();
+  const pass = document.getElementById('liPass').value;
+  try{
+    await _auth.signInWithEmailAndPassword(email, pass);
+  }catch(e){ toast(authErr(e)); }
+}
+function authErr(e){
+  const map = {
+    'auth/email-already-in-use':'هذا البريد مسجّل من قبل',
+    'auth/invalid-email':'صيغة البريد غير صحيحة',
+    'auth/weak-password':'كلمة المرور ضعيفة',
+    'auth/user-not-found':'ما فيه حساب بهذا البريد',
+    'auth/wrong-password':'كلمة المرور غير صحيحة',
+    'auth/invalid-credential':'بيانات الدخول غير صحيحة',
+  };
+  return map[e.code] || 'صار خطأ، حاول مرة ثانية';
+}
+function doLogout(){ _auth.signOut(); }
+
+/* =====================================================================
+   التوجيه الرئيسي
+   ===================================================================== */
+async function boot(){
+  if(routeSlug){
+    // صفحة الزبون العامة
+    publicRestaurant = await getRestaurantBySlug(routeSlug);
+    renderApp();
+    return;
+  }
+  if(!_auth){ renderApp(); return; }
+  _auth.onAuthStateChanged(async (user)=>{
+    currentUser = user;
+    if(user){
+      currentRestaurant = await getRestaurantByOwner(user.uid);
+    } else {
+      currentRestaurant = null;
+    }
+    renderApp();
+  });
+}
+
+function renderApp(){
+  const app = document.getElementById('app');
+  if(routeSlug){
+    app.innerHTML = renderPublicMenu();
+    wirePublicMenu();
+    return;
+  }
+  if(currentUser && currentRestaurant){
+    app.innerHTML = renderDashboardShell();
+    renderDashboardTab();
+    return;
+  }
+  if(currentUser && !currentRestaurant){
+    app.innerHTML = `<div class="auth-wrap"><div class="card" style="text-align:center;">جاري تجهيز حسابك...</div></div>`;
+    return;
+  }
+  app.innerHTML = renderLanding();
+}
+
+/* =====================================================================
+   الصفحة الرئيسية Landing
+   ===================================================================== */
+function renderLanding(){
+  return `
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="mark">منيو إلكتروني بدون تطبيق</div>
+      <h1>منيو مطعمك يفتح بمسحة كود واحدة</h1>
+      <p>حوّل منيو مطعمك أو كافيهك لصفحة إلكترونية أنيقة، الزبون يمسحها من الطاولة ويشوفها فوراً من متصفح جواله — بدون تحميل أي تطبيق.</p>
+      <div class="hero-cta">
+        <button class="btn btn-accent" onclick="showAuth('signup')">إنشاء منيو مطعمي</button>
+        <button class="btn btn-ghost" style="background:transparent; border-color:rgba(255,255,255,.3); color:#fff;" onclick="showAuth('login')">تسجيل الدخول</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="steps">
+      <h2>يشتغل بثلاث خطوات بس</h2>
+      <div class="step-row">
+        <div class="step-num">1</div>
+        <div class="step-body"><h3>أنشئ منيو مطعمك</h3><p>سجّل حساب، وأضف أقسامك وأصنافك وصورها وأسعارها من لوحة تحكم بسيطة.</p></div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">2</div>
+        <div class="step-body"><h3>اطبع QR Code وحطه بالطاولات</h3><p>كل طاولة تاخذ كود خاص فيها، تقدر تحمّله وتطبعه بثوانٍ.</p></div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">3</div>
+        <div class="step-body"><h3>الزبون يمسح ويشوف المنيو</h3><p>يفتح كاميرا جواله، يمسح الكود، ويتصفح المنيو فوراً من المتصفح.</p></div>
+      </div>
+    </div>
+
+    <div class="feat-grid">
+      <div class="feat"><div class="ic">⚡</div><h4>سريع جداً</h4><p>يفتح بثوانٍ حتى على شبكات ضعيفة</p></div>
+      <div class="feat"><div class="ic">🎨</div><h4>تصميم أنيق</h4><p>يشبه منيو ورقي فاخر لكن تفاعلي</p></div>
+      <div class="feat"><div class="ic">🛠️</div><h4>تحكم كامل</h4><p>عدّل الأصناف والأسعار بنفسك بدون مبرمج</p></div>
+      <div class="feat"><div class="ic">📱</div><h4>بدون تطبيق</h4><p>يفتح من متصفح الجوال مباشرة</p></div>
+    </div>
+
+    <div class="landing-foot">
+      <p>جاهز تبدأ؟ يستغرق أقل من 5 دقائق</p>
+      <button class="btn btn-primary btn-block" onclick="showAuth('signup')">أنشئ منيو مطعمك الآن مجاناً</button>
+    </div>
+  </div>`;
+}
+
+function showAuth(mode){
+  document.getElementById('app').innerHTML = renderAuth(mode);
+}
+function renderAuth(mode){
+  const isSignup = mode==='signup';
+  return `
+  <div class="auth-wrap">
+    <div class="auth-mark">
+      <div class="logo-dot">م</div>
+      <div style="font-family:Cairo,sans-serif; font-weight:900; font-size:18px;">منسة</div>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab ${isSignup?'active':''}" onclick="showAuth('signup')">حساب جديد</button>
+      <button class="auth-tab ${!isSignup?'active':''}" onclick="showAuth('login')">تسجيل الدخول</button>
+    </div>
+    <div class="card">
+      ${isSignup ? `
+        <label>اسم المطعم / الكافيه</label>
+        <input type="text" id="suRestName" placeholder="مثال: مطعم الواحة">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="suEmail" placeholder="you@email.com">
+        <label>كلمة المرور</label>
+        <input type="password" id="suPass" placeholder="6 أحرف فأكثر">
+        <button class="btn btn-primary btn-block" style="margin-top:18px;" onclick="doSignup()">إنشاء الحساب</button>
+      ` : `
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="liEmail" placeholder="you@email.com">
+        <label>كلمة المرور</label>
+        <input type="password" id="liPass" placeholder="كلمة المرور">
+        <button class="btn btn-primary btn-block" style="margin-top:18px;" onclick="doLogin()">دخول</button>
+      `}
+    </div>
+    <div style="text-align:center;"><button class="btn btn-ghost btn-sm" onclick="renderApp()">◀ رجوع للصفحة الرئيسية</button></div>
+  </div>`;
+}
+
+/* =====================================================================
+   لوحة تحكم المطعم — الإطار العام
+   ===================================================================== */
+function renderDashboardShell(){
+  return `
+  <div class="topbar">
+    <div class="rname">${escapeHTML(currentRestaurant.name)}<small>لوحة تحكم المطعم</small></div>
+    <button class="logout-btn" onclick="doLogout()">خروج</button>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn ${dashState.tab==='items'?'active':''}" onclick="switchTab('items')">🍽️ الأصناف</button>
+    <button class="tab-btn ${dashState.tab==='categories'?'active':''}" onclick="switchTab('categories')">🗂️ الأقسام</button>
+    <button class="tab-btn ${dashState.tab==='tables'?'active':''}" onclick="switchTab('tables')">🔗 الطاولات و QR</button>
+    <button class="tab-btn ${dashState.tab==='settings'?'active':''}" onclick="switchTab('settings')">⚙️ إعدادات المطعم</button>
+  </div>
+  <div class="wrap" id="dashBody" style="padding-top:16px;"></div>
+  `;
+}
+function switchTab(t){ dashState.tab = t; document.getElementById('app').innerHTML = renderDashboardShell(); renderDashboardTab(); }
+async function renderDashboardTab(){
+  const body = document.getElementById('dashBody');
+  if(dashState.tab==='items') return renderItemsTab(body);
+  if(dashState.tab==='categories') return renderCategoriesTab(body);
+  if(dashState.tab==='tables') return renderTablesTab(body);
+  if(dashState.tab==='settings') return renderSettingsTab(body);
+}
+
+/* ---------------- الأقسام ---------------- */
+async function renderCategoriesTab(body){
+  body.innerHTML = `<div class="card" style="text-align:center;">جاري التحميل...</div>`;
+  const cats = await listSub(currentRestaurant.id, 'categories');
+  if(!cats.length){
+    body.innerHTML = emptyState('🗂️','ما فيه أقسام بعد','أضف أول قسم لمنيوك، مثل "المقبلات" أو "المشروبات"');
+  } else {
+    body.innerHTML = cats.map(c=>`
+      <div class="list-row ${c.active===false?'inactive':''}">
+        <div class="ph">🗂️</div>
+        <div class="info"><h4>${escapeHTML(c.name)}</h4><p>${c.active===false?'مخفي':'ظاهر بالمنيو'}</p></div>
+        <div class="row-actions">
+          <button class="icon-btn" onclick="editCategory('${c.id}')">✏️</button>
+          <button class="icon-btn" onclick="toggleCategoryActive('${c.id}', ${c.active===false})">${c.active===false?'👁️':'🚫'}</button>
+          <button class="icon-btn" onclick="removeCategory('${c.id}')">🗑️</button>
+        </div>
+      </div>`).join('');
+  }
+  body.innerHTML += `<div style="height:70px;"></div>`;
+  ensureFab('+ قسم جديد', ()=>editCategory(null));
+}
+function editCategory(id){
+  listSub(currentRestaurant.id,'categories').then(cats=>{
+    const c = cats.find(x=>x.id===id) || {name:''};
+    openModal(`
+      <div class="modal-head"><h3>${id?'تعديل القسم':'قسم جديد'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+      <label>اسم القسم</label>
+      <input type="text" id="catName" value="${escapeHTML(c.name)}" placeholder="مثال: المقبلات">
+      <button class="btn btn-primary btn-block" style="margin-top:18px;" onclick="saveCategory('${id||''}')">حفظ</button>
+    `);
+  });
+}
+async function saveCategory(id){
+  const name = document.getElementById('catName').value.trim();
+  if(!name){ toast('اكتب اسم القسم'); return; }
+  if(id) await updateSub(currentRestaurant.id,'categories',id,{name});
+  else await addSub(currentRestaurant.id,'categories',{name, active:true});
+  closeModal(); toast('تم الحفظ ✅'); renderDashboardTab();
+}
+async function toggleCategoryActive(id, makeActive){
+  await updateSub(currentRestaurant.id,'categories',id,{active:makeActive});
+  renderDashboardTab();
+}
+async function removeCategory(id){
+  if(!confirm('حذف هذا القسم؟ (الأصناف بداخله ما تنحذف تلقائياً)')) return;
+  await deleteSub(currentRestaurant.id,'categories',id);
+  toast('تم الحذف'); renderDashboardTab();
+}
+
+/* ---------------- الأصناف ---------------- */
+async function renderItemsTab(body){
+  body.innerHTML = `<div class="card" style="text-align:center;">جاري التحميل...</div>`;
+  const [cats, items] = await Promise.all([listSub(currentRestaurant.id,'categories'), listSub(currentRestaurant.id,'items')]);
+  if(!cats.length){
+    body.innerHTML = emptyState('🍽️','أضف قسم أولاً','لازم يكون فيه قسم واحد على الأقل قبل ما تضيف أصناف');
+    return;
+  }
+  if(!dashState.selectedCategoryId) dashState.selectedCategoryId = cats[0].id;
+  const catChips = `<div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:14px;">${
+    cats.map(c=>`<button class="tab-btn ${dashState.selectedCategoryId===c.id?'active':''}" style="flex-shrink:0;" onclick="selectCat('${c.id}')">${escapeHTML(c.name)}</button>`).join('')
+  }</div>`;
+  const catItems = items.filter(i=>i.categoryId===dashState.selectedCategoryId);
+  const list = catItems.length ? catItems.map(i=>`
+      <div class="list-row ${i.active===false?'inactive':''}">
+        ${i.imageUrl?`<img src="${i.imageUrl}" alt="">`:`<div class="ph">🍲</div>`}
+        <div class="info"><h4>${escapeHTML(i.name)}</h4><p>${i.active===false?'غير متوفر حالياً':'متوفر'}</p></div>
+        <div class="price">${fmtPrice(i.price)}</div>
+        <div class="row-actions">
+          <button class="icon-btn" onclick="editItem('${i.id}')">✏️</button>
+          <button class="icon-btn" onclick="toggleItemActive('${i.id}', ${i.active===false})">${i.active===false?'👁️':'🚫'}</button>
+          <button class="icon-btn" onclick="removeItem('${i.id}')">🗑️</button>
+        </div>
+      </div>`).join('') : emptyState('🍽️','ما فيه أصناف بهذا القسم','اضغط "+ صنف جديد" بالأسفل لإضافة أول صنف');
+  body.innerHTML = catChips + list + `<div style="height:70px;"></div>`;
+  ensureFab('+ صنف جديد', ()=>editItem(null));
+}
+function selectCat(id){ dashState.selectedCategoryId = id; renderDashboardTab(); }
+
+async function editItem(id){
+  const [cats, items] = await Promise.all([listSub(currentRestaurant.id,'categories'), listSub(currentRestaurant.id,'items')]);
+  const i = id ? items.find(x=>x.id===id) : { name:'', description:'', price:'', imageUrl:'', categoryId: dashState.selectedCategoryId, addons:[] };
+  const addons = i.addons || [];
+  openModal(`
+    <div class="modal-head"><h3>${id?'تعديل الصنف':'صنف جديد'}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <label>صورة الصنف</label>
+    <div class="img-upload" id="itemImgWrap">
+      ${i.imageUrl?`<img src="${i.imageUrl}" id="itemImgPreview">`:`<span id="itemImgPreview">📷 اضغط لرفع صورة</span>`}
+      <input type="file" accept="image/*" id="itemImgInput">
+    </div>
+    <label>القسم</label>
+    <select id="itemCat">${cats.map(c=>`<option value="${c.id}" ${c.id===i.categoryId?'selected':''}>${escapeHTML(c.name)}</option>`).join('')}</select>
+    <label>اسم الصنف</label>
+    <input type="text" id="itemName" value="${escapeHTML(i.name)}" placeholder="مثال: برجر لحم">
+    <label>وصف مختصر</label>
+    <textarea id="itemDesc" placeholder="مكونات الصنف بشكل مختصر">${escapeHTML(i.description||'')}</textarea>
+    <label>السعر</label>
+    <input type="number" id="itemPrice" value="${i.price||''}" placeholder="0.00">
+    <label>إضافات اختيارية (افصل بينها بفاصلة، مثال: جبنة إضافية:2, صوص حار:0)</label>
+    <input type="text" id="itemAddons" value="${escapeHTML(addons.map(a=>a.name+':'+a.price).join(', '))}" placeholder="اسم:سعر, اسم:سعر">
+    <button class="btn btn-primary btn-block" style="margin-top:18px;" onclick="saveItem('${id||''}')">حفظ الصنف</button>
+  `);
+  let pendingImageUrl = i.imageUrl || '';
+  wireImageUpload('itemImgInput','itemImgWrap',(url)=>{
+    pendingImageUrl = url;
+    document.getElementById('itemImgWrap').innerHTML = `<img src="${url}"><input type="file" accept="image/*" id="itemImgInput">`;
+    wireImageUpload('itemImgInput','itemImgWrap',(u2)=>{ pendingImageUrl=u2; });
+  });
+  window._pendingItemImage = ()=>pendingImageUrl;
+}
+async function saveItem(id){
+  const name = document.getElementById('itemName').value.trim();
+  const price = parseFloat(document.getElementById('itemPrice').value);
+  const categoryId = document.getElementById('itemCat').value;
+  const description = document.getElementById('itemDesc').value.trim();
+  const addonsRaw = document.getElementById('itemAddons').value.trim();
+  const imageUrl = window._pendingItemImage ? window._pendingItemImage() : '';
+  if(!name || isNaN(price)){ toast('اكتب اسم الصنف والسعر بشكل صحيح'); return; }
+  const addons = addonsRaw ? addonsRaw.split(',').map(s=>{
+    const [n,p] = s.split(':'); return { name:(n||'').trim(), price: parseFloat(p)||0 };
+  }).filter(a=>a.name) : [];
+  const data = { name, price, categoryId, description, imageUrl, addons };
+  if(id) await updateSub(currentRestaurant.id,'items',id,data);
+  else await addSub(currentRestaurant.id,'items',{...data, active:true});
+  closeModal(); toast('تم حفظ الصنف ✅'); renderDashboardTab();
+}
+async function toggleItemActive(id, makeActive){
+  await updateSub(currentRestaurant.id,'items',id,{active:makeActive});
+  renderDashboardTab();
+}
+async function removeItem(id){
+  if(!confirm('حذف هذا الصنف نهائياً؟')) return;
+  await deleteSub(currentRestaurant.id,'items',id);
+  toast('تم الحذف'); renderDashboardTab();
+}
+
+/* ---------------- الطاولات و QR ---------------- */
+async function renderTablesTab(body){
+  body.innerHTML = `<div class="card" style="text-align:center;">جاري التحميل...</div>`;
+  const tables = await listSub(currentRestaurant.id,'tables');
+  if(!tables.length){
+    body.innerHTML = emptyState('🔗','ما فيه طاولات بعد','أضف طاولاتك عشان تولّد لكل وحدة QR Code خاص فيها');
+  } else {
+    body.innerHTML = `<div class="note" style="margin-bottom:14px;">امسح الكود بجوالك للتجربة، أو اضغط "تحميل" لطباعته على الطاولة.</div>` +
+      tables.map(t=>{
+        const menuUrl = `${location.origin}${location.pathname}?r=${currentRestaurant.slug}&table=${encodeURIComponent(t.number)}`;
+        return `<div class="qr-card">
+          <div id="qr-${t.id}"></div>
+          <h4>طاولة ${escapeHTML(String(t.number))}</h4>
+          <div class="url">${menuUrl}</div>
+          <div class="qr-actions">
+            <button class="btn btn-ghost btn-sm" onclick="downloadQR('${t.id}','${escapeHTML(String(t.number))}')">⬇️ PNG</button>
+            <button class="btn btn-ghost btn-sm" onclick="downloadQRPDF('${t.id}','${escapeHTML(String(t.number))}')">⬇️ PDF</button>
+            <button class="icon-btn" onclick="removeTable('${t.id}')">🗑️</button>
+          </div>
+        </div>`;
+      }).join('');
+  }
+  body.innerHTML += `<div style="height:70px;"></div>`;
+  ensureFab('+ طاولة جديدة', ()=>addTable());
+  // ترسم أكواد الـ QR بعد إضافتها للـ DOM
+  for(const t of tables){
+    const menuUrl = `${location.origin}${location.pathname}?r=${currentRestaurant.slug}&table=${encodeURIComponent(t.number)}`;
+    const holder = document.getElementById(`qr-${t.id}`);
+    if(holder) new QRCode(holder, { text: menuUrl, width:150, height:150, colorDark:'#241C14', colorLight:'#ffffff' });
+  }
+}
+async function addTable(){
+  const num = prompt('رقم أو اسم الطاولة (مثال: 5 أو VIP1):');
+  if(!num) return;
+  await addSub(currentRestaurant.id,'tables',{ number:num.trim() });
+  toast('تمت إضافة الطاولة ✅'); renderDashboardTab();
+}
+async function removeTable(id){
+  if(!confirm('حذف هذي الطاولة؟')) return;
+  await deleteSub(currentRestaurant.id,'tables',id);
+  toast('تم الحذف'); renderDashboardTab();
+}
+function downloadQR(tableId, num){
+  const canvas = document.querySelector(`#qr-${tableId} canvas`);
+  if(!canvas){ toast('تعذّر تجهيز الصورة'); return; }
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = `table-${num}-qr.png`;
+  a.click();
+}
+function downloadQRPDF(tableId, num){
+  const canvas = document.querySelector(`#qr-${tableId} canvas`);
+  if(!canvas || !window.jspdf){ toast('تعذّر تجهيز الملف'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:[100,120] });
+  const img = canvas.toDataURL('image/png');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.text(`Table ${num}`, 50, 20, { align:'center' });
+  doc.addImage(img, 'PNG', 20, 28, 60, 60);
+  doc.setFontSize(10);
+  doc.text(`${currentRestaurant.name}`, 50, 100, { align:'center' });
+  doc.save(`table-${num}-qr.pdf`);
+}
+
+/* ---------------- إعدادات المطعم ---------------- */
+async function renderSettingsTab(body){
+  const r = currentRestaurant;
+  const colors = ['#C67C2E','#748C55','#B3432B','#2B6E8C','#8C5EA8','#2B1A12'];
+  body.innerHTML = `
+    <div class="card">
+      <div class="eyebrow">هوية المطعم</div>
+      <label>شعار المطعم</label>
+      <div class="img-upload" id="logoWrap" style="aspect-ratio:1/1; max-width:120px;">
+        ${r.logoUrl?`<img src="${r.logoUrl}">`:`<span>📷 شعار</span>`}
+        <input type="file" accept="image/*" id="logoInput">
+      </div>
+      <label>صورة الغلاف</label>
+      <div class="img-upload" id="coverWrap">
+        ${r.coverUrl?`<img src="${r.coverUrl}">`:`<span>📷 صورة الغلاف</span>`}
+        <input type="file" accept="image/*" id="coverInput">
+      </div>
+      <label>اسم المطعم</label>
+      <input type="text" id="setName" value="${escapeHTML(r.name)}">
+      <label>لون هوية المنيو</label>
+      <div class="color-swatches">
+        ${colors.map(c=>`<button class="swatch ${r.accentColor===c?'active':''}" style="background:${c}" onclick="pickColor('${c}')"></button>`).join('')}
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:18px;" onclick="saveSettings()">حفظ الإعدادات</button>
+    </div>
+    <div class="card">
+      <div class="eyebrow">رابط منيو مطعمك</div>
+      <p style="font-size:13px; word-break:break-all; margin-bottom:10px;">${location.origin}${location.pathname}?r=${r.slug}</p>
+      <button class="btn btn-ghost btn-block" onclick="navigator.clipboard.writeText('${location.origin}${location.pathname}?r=${r.slug}'); toast('تم نسخ الرابط')">نسخ الرابط</button>
+    </div>
+    <div style="height:30px;"></div>
+  `;
+  wireImageUpload('logoInput','logoWrap', async (url)=>{ await saveRestaurant(r.id,{logoUrl:url}); r.logoUrl=url; toast('تم تحديث الشعار'); });
+  wireImageUpload('coverInput','coverWrap', async (url)=>{ await saveRestaurant(r.id,{coverUrl:url}); r.coverUrl=url; toast('تم تحديث الغلاف'); });
+  removeFab();
+}
+async function pickColor(c){
+  currentRestaurant.accentColor = c;
+  await saveRestaurant(currentRestaurant.id, {accentColor:c});
+  renderDashboardTab();
+}
+async function saveSettings(){
+  const name = document.getElementById('setName').value.trim();
+  if(!name){ toast('اكتب اسم المطعم'); return; }
+  await saveRestaurant(currentRestaurant.id, {name});
+  currentRestaurant.name = name;
+  toast('تم حفظ الإعدادات ✅');
+  renderApp();
+}
+
+/* ---------------- عناصر مساعدة للوحة التحكم ---------------- */
+function emptyState(icon,title,desc){
+  return `<div class="empty-state"><div class="ic">${icon}</div><h4>${title}</h4><p>${desc}</p></div>`;
+}
+function ensureFab(label, onClick){
+  removeFab();
+  const fab = el(`<button class="fab" id="dashFab">${label}</button>`);
+  fab.onclick = onClick;
+  document.body.appendChild(fab);
+}
+function removeFab(){ const f=document.getElementById('dashFab'); if(f) f.remove(); }
+
+/* =====================================================================
+   منيو الزبون — الصفحة العامة
+   ===================================================================== */
+function renderPublicMenu(){
+  if(!publicRestaurant){
+    return `<div class="auth-wrap"><div class="card" style="text-align:center;"><h3>ما لقينا هذا المنيو 😕</h3><p class="note">تأكد من الرابط أو تواصل مع المطعم.</p></div></div>`;
+  }
+  const r = publicRestaurant;
+  document.documentElement.style.setProperty('--accent', r.accentColor || '#C67C2E');
+  document.documentElement.style.setProperty('--primary', r.primaryColor || '#2B1A12');
+  return `
+    <div class="m-cover">
+      ${r.coverUrl?`<img src="${r.coverUrl}">`:''}
+      <div class="shade"></div>
+    </div>
+    <div class="m-header">
+      <div class="m-logo">${r.logoUrl?`<img src="${r.logoUrl}">`:escapeHTML((r.name||'م')[0])}</div>
+      <div class="m-title">${escapeHTML(r.name)}</div>
+      ${routeTable?`<div class="m-table-chip">🍽️ طاولة ${escapeHTML(routeTable)}</div>`:''}
+    </div>
+    <div class="m-search">
+      <input type="text" id="menuSearch" placeholder="🔍 دوّر عن صنف...">
+    </div>
+    <div class="m-cats" id="menuCats"></div>
+    <div id="menuList"></div>
+    <div style="height:30px;"></div>
+  `;
+}
+async function wirePublicMenu(){
+  if(!publicRestaurant) return;
+  const r = publicRestaurant;
+  const [cats, items] = await Promise.all([listSub(r.id,'categories'), listSub(r.id,'items')]);
+  const visibleCats = cats.filter(c=>c.active!==false);
+  const visibleItems = items.filter(i=>i.active!==false);
+
+  document.getElementById('menuCats').innerHTML =
+    `<button class="m-cat-btn ${publicMenuState.activeCat==='all'?'active':''}" onclick="setPublicCat('all')">الكل</button>` +
+    visibleCats.map(c=>`<button class="m-cat-btn ${publicMenuState.activeCat===c.id?'active':''}" onclick="setPublicCat('${c.id}')">${escapeHTML(c.name)}</button>`).join('');
+
+  function draw(){
+    const q = publicMenuState.search.trim().toLowerCase();
+    let list = visibleItems;
+    if(publicMenuState.activeCat!=='all') list = list.filter(i=>i.categoryId===publicMenuState.activeCat);
+    if(q) list = list.filter(i=> (i.name||'').toLowerCase().includes(q) || (i.description||'').toLowerCase().includes(q));
+
+    let html = '';
+    if(!list.length){
+      html = emptyState('🔍','ما لقينا أصناف','جرب كلمة بحث ثانية أو اختر قسم آخر');
+    } else if(publicMenuState.activeCat==='all' && !q){
+      for(const c of visibleCats){
+        const catItems = list.filter(i=>i.categoryId===c.id);
+        if(!catItems.length) continue;
+        html += `<div class="m-cat-heading">${escapeHTML(c.name)}</div>`;
+        html += catItems.map(itemRow).join('');
+      }
+    } else {
+      html = list.map(itemRow).join('');
+    }
+    document.getElementById('menuList').innerHTML = html;
+  }
+  function itemRow(i){
+    return `<div class="m-item" onclick="openItemSheet('${i.id}')">
+      ${i.imageUrl?`<img src="${i.imageUrl}">`:`<div class="ph">🍲</div>`}
+      <div class="info">
+        <h4>${escapeHTML(i.name)}</h4>
+        <div class="desc">${escapeHTML(i.description||'')}</div>
+        <div class="price">${fmtPrice(i.price)}</div>
+        ${(i.addons&&i.addons.length)?`<span class="addons-tag">إضافات متاحة</span>`:''}
+      </div>
+    </div>`;
+  }
+  window._publicItems = visibleItems;
+  window._publicCats = visibleCats;
+  draw();
+  document.getElementById('menuSearch').addEventListener('input', (e)=>{ publicMenuState.search = e.target.value; draw(); });
+  window._drawPublicMenu = draw;
+}
+function setPublicCat(id){ publicMenuState.activeCat = id; if(window._drawPublicMenu) window._drawPublicMenu();
+  document.querySelectorAll('.m-cat-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+function openItemSheet(id){
+  const i = (window._publicItems||[]).find(x=>x.id===id);
+  if(!i) return;
+  openModal(`
+    <div class="modal-head"><h3>${escapeHTML(i.name)}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+    ${i.imageUrl?`<img class="item-sheet-img" src="${i.imageUrl}">`:''}
+    <p style="font-size:14px; color:var(--muted); line-height:1.8; margin-bottom:14px;">${escapeHTML(i.description||'')}</p>
+    <div style="font-family:Cairo,sans-serif; font-weight:900; font-size:19px; color:var(--accent-ink); margin-bottom:14px;">${fmtPrice(i.price)}</div>
+    ${(i.addons&&i.addons.length)?`
+      <div class="opt-group">
+        <h5>إضافات اختيارية</h5>
+        ${i.addons.map(a=>`<div class="opt-choice"><span>${escapeHTML(a.name)}</span><span>${a.price>0?'+'+fmtPrice(a.price):'مجاناً'}</span></div>`).join('')}
+      </div>` : ''}
+  `);
+}
+
+/* =====================================================================
+   بدء التشغيل
+   ===================================================================== */
+boot();
+</script>
+</body>
+</html>
