@@ -368,6 +368,19 @@ async function doLogin(){
     await _auth.signInWithEmailAndPassword(email, pass);
   }catch(e){ toast(authErr(e)); }
 }
+async function completeRestaurantSetup(){
+  const name = document.getElementById('fixRestName').value.trim();
+  if(!name){ toast('اكتب اسم المطعم'); return; }
+  try{
+    const rest = await createRestaurant(currentUser.uid, name);
+    currentRestaurant = rest;
+    toast('تم إنشاء حسابك بنجاح 🎉');
+    renderApp();
+  }catch(e){
+    console.error(e);
+    toast('صار خطأ: ' + (e.code || e.message || 'غير معروف'));
+  }
+}
 function authErr(e){
   const map = {
     'auth/email-already-in-use':'هذا البريد مسجّل من قبل',
@@ -377,7 +390,7 @@ function authErr(e){
     'auth/wrong-password':'كلمة المرور غير صحيحة',
     'auth/invalid-credential':'بيانات الدخول غير صحيحة',
   };
-  return map[e.code] || 'صار خطأ، حاول مرة ثانية';
+  return map[e.code] || ('صار خطأ: ' + (e.code || e.message || 'غير معروف'));
 }
 function doLogout(){ _auth.signOut(); }
 
@@ -416,7 +429,18 @@ function renderApp(){
     return;
   }
   if(currentUser && !currentRestaurant){
-    app.innerHTML = `<div class="auth-wrap"><div class="card" style="text-align:center;">جاري تجهيز حسابك...</div></div>`;
+    app.innerHTML = `
+    <div class="auth-wrap">
+      <div class="card">
+        <div class="eyebrow">إكمال إنشاء الحساب</div>
+        <h3 style="margin-bottom:10px;">صار خلل بسيط بآخر مرة، خلينا نكمل</h3>
+        <p class="note" style="margin-bottom:14px;">حسابك بالبريد موجود، بس ما اكتمل ربطه بمطعم. اكتب اسم مطعمك وضغط "متابعة".</p>
+        <label>اسم المطعم / الكافيه</label>
+        <input type="text" id="fixRestName" placeholder="مثال: مطعم الواحة">
+        <button class="btn btn-primary btn-block" style="margin-top:16px;" onclick="completeRestaurantSetup()">متابعة</button>
+        <button class="btn btn-ghost btn-block" style="margin-top:10px;" onclick="doLogout()">تسجيل خروج والمحاولة بحساب ثاني</button>
+      </div>
+    </div>`;
     return;
   }
   app.innerHTML = renderLanding();
